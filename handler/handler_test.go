@@ -3,7 +3,9 @@ package handler_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"ssm/handler"
+	"ssm/mock"
+	"ssm/model"
+	"ssm/server"
 	"strings"
 	"testing"
 
@@ -14,14 +16,16 @@ import (
 func TestCallPathParam_ShouldBeReturnThatParam(t *testing.T) {
 	// Setup
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/pinpinpin", nil)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.SetPath("/:name")
-	c.SetParamNames("name")
-	c.SetParamValues("pinpinpin")
+	uls := mock.UserLoginLogDB{}
 
-	handler.ServeHomePath(c)
+	server := server.Server{
+		Echo:           e,
+		UserLoginLogDB: uls,
+	}
+	server.ServerRoute()
+	server.ServeHTTP(rec, req)
 
 	// Assertions
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -29,14 +33,19 @@ func TestCallPathParam_ShouldBeReturnThatParam(t *testing.T) {
 }
 
 func TestCallPathJson_ShouldReturnJson(t *testing.T) {
+	// Setup
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/json", nil)
 	rec := httptest.NewRecorder()
+	uls := mock.UserLoginLogDB{}
 
-	c := e.NewContext(req, rec)
-	c.SetPath("/json")
+	server := server.Server{
+		Echo:           e,
+		UserLoginLogDB: uls,
+	}
+	server.ServerRoute()
+	server.ServeHTTP(rec, req)
 
-	handler.ServeHomePathReturnJson(c)
 	expected := `{"Username":"aorjoa","Point":10.2}`
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, expected, strings.TrimSpace(rec.Body.String()))
@@ -48,9 +57,18 @@ func TestCallPathLogin_ShouldBeAbleToLogin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(data))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
+	uls := mock.UserLoginLogDB{}
 
-	c := e.NewContext(req, rec)
-	handler.ServeHomePathReceivePostBody(c)
+	ulm := model.UserLoginLog{Username: "aorjoa", Password: "test"}
+
+	uls.On("Create", &ulm).Return(nil)
+
+	server := server.Server{
+		Echo:           e,
+		UserLoginLogDB: uls,
+	}
+	server.ServerRoute()
+	server.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, data, strings.TrimSpace(rec.Body.String()))
